@@ -17,7 +17,10 @@ import {
   TrendingUp,
   Apple,
   Award,
-  ChevronRight
+  ChevronRight,
+  Activity,
+  Zap,
+  RotateCw
 } from 'lucide-react';
 
 function App() {
@@ -28,6 +31,12 @@ function App() {
   const [faqOpen, setFaqOpen] = useState(null);
   const [plans, setPlans] = useState([]);
   const [loadingPlans, setLoadingPlans] = useState(true);
+
+  // Live Workout Animation States
+  const [activeExercise, setActiveExercise] = useState('dumbbell');
+  const [repProgress, setRepProgress] = useState(0); // 0 to 100
+  const [repCount, setRepCount] = useState(0);
+  const [isLiftingUp, setIsLiftingUp] = useState(true);
 
   // Form States
   const [loginEmail, setLoginEmail] = useState('');
@@ -49,7 +58,6 @@ function App() {
       })
       .catch(err => {
         console.error('Error fetching plans, using fallback.', err);
-        // Fallback plans if backend fails
         setPlans([
           { id: 1, name: 'Basic', price: 29, features: ['Full gym access', 'Locker room access', '1 Complementary fitness assessment'] },
           { id: 2, name: 'Premium', price: 49, features: ['Full gym access', 'Locker room access', 'Unlimited group classes', 'Custom workout plan'] },
@@ -58,6 +66,262 @@ function App() {
         setLoadingPlans(false);
       });
   }, []);
+
+  // Smooth Workout Repetition Loop
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRepProgress(prev => {
+        if (isLiftingUp) {
+          if (prev >= 100) {
+            setIsLiftingUp(false);
+            return 100;
+          }
+          return prev + 2.5;
+        } else {
+          if (prev <= 0) {
+            setIsLiftingUp(true);
+            setRepCount(rc => rc + 1);
+            return 0;
+          }
+          return prev - 2.5;
+        }
+      });
+    }, 40);
+    return () => clearInterval(interval);
+  }, [isLiftingUp, activeExercise]);
+
+  // Reset reps when changing exercise
+  useEffect(() => {
+    setRepCount(0);
+    setRepProgress(0);
+    setIsLiftingUp(true);
+  }, [activeExercise]);
+
+  // Sine mapping for realistic biological lifting speed (slower at peak, faster in middle)
+  const animValue = Math.sin((repProgress / 100) * (Math.PI / 2));
+
+  const exercises = {
+    dumbbell: {
+      name: "Dumbbell Bicep Curl",
+      muscles: "Biceps, Forearms, Brachialis",
+      calories: 4.8,
+      tips: "Keep elbows pinned to your torso. Avoid using momentum or swinging the upper body.",
+      render: () => {
+        const forearmRotation = animValue * 55; // 0 to 55 degrees
+        const bicepScaleY = 1 + animValue * 0.28;
+        const bicepScaleX = 1 + animValue * 0.15;
+        return (
+          <svg className="w-full h-full max-h-[300px]" viewBox="0 0 200 200">
+            {/* Shoulder Joint */}
+            <circle cx="70" cy="60" r="10" className="fill-slate-800 stroke-slate-700 stroke-2" />
+            {/* Upper Arm */}
+            <line x1="70" y1="60" x2="80" y2="110" className="stroke-slate-700 stroke-[16] stroke-linecap-round" />
+            {/* Bicep Muscle (Active Highlights) */}
+            <path 
+              d="M 68 70 Q 55 85 78 105" 
+              className="stroke-orange-500 fill-none stroke-[20] stroke-linecap-round opacity-80"
+              style={{
+                transform: `scale(${bicepScaleX}, ${bicepScaleY})`,
+                transformOrigin: '70px 60px',
+                transition: 'transform 0.05s ease-out',
+                filter: `drop-shadow(0 0 ${animValue * 8}px rgba(249, 115, 22, 0.4))`
+              }}
+            />
+            {/* Elbow Joint */}
+            <circle cx="80" cy="110" r="8" className="fill-slate-800 stroke-slate-700 stroke-2" />
+            
+            {/* Forearm + Dumbbell Group (Rotates around Elbow [80, 110]) */}
+            <g style={{
+              transform: `rotate(-${forearmRotation}deg)`,
+              transformOrigin: '80px 110px',
+              transition: 'transform 0.05s ease-out'
+            }}>
+              {/* Forearm bone */}
+              <line x1="80" y1="110" x2="140" y2="100" className="stroke-slate-700 stroke-[12] stroke-linecap-round" />
+              {/* Forearm muscle highlight */}
+              <line x1="80" y1="110" x2="140" y2="100" className="stroke-orange-500/40 stroke-[12] stroke-linecap-round" />
+              {/* Wrist Joint */}
+              <circle cx="140" cy="100" r="6" className="fill-slate-800 stroke-slate-700 stroke-2" />
+              
+              {/* Dumbbell Handle */}
+              <line x1="140" y1="85" x2="140" y2="115" className="stroke-slate-500 stroke-[8]" />
+              {/* Dumbbell Weights */}
+              <rect x="130" y="70" width="20" height="15" rx="3" className="fill-slate-800 stroke-slate-600 stroke-2" />
+              <rect x="130" y="115" width="20" height="15" rx="3" className="fill-slate-800 stroke-slate-600 stroke-2" />
+              {/* Grip Highlight */}
+              <circle cx="140" cy="100" r="4" className="fill-orange-500" />
+            </g>
+          </svg>
+        );
+      }
+    },
+    barbell: {
+      name: "Barbell Bench Press",
+      muscles: "Pectoralis Major, Triceps, Anterior Deltoids",
+      calories: 6.2,
+      tips: "Retract scapula, maintain a slight arch in your lower back, and touch the bar to mid-chest.",
+      render: () => {
+        const barY = 120 - animValue * 65; // Bar slides between Y=120 and Y=55
+        const chestScale = 1 + animValue * 0.15;
+        return (
+          <svg className="w-full h-full max-h-[300px]" viewBox="0 0 200 200">
+            {/* Bench Press Rack */}
+            <line x1="40" y1="150" x2="40" y2="80" className="stroke-slate-800 stroke-[6] stroke-linecap-round" />
+            <line x1="160" y1="150" x2="160" y2="80" className="stroke-slate-800 stroke-[6] stroke-linecap-round" />
+            {/* Flat Bench */}
+            <rect x="50" y="130" width="100" height="15" rx="4" className="fill-slate-900 stroke-slate-800 stroke-2" />
+            
+            {/* Torso lying down */}
+            <ellipse cx="100" cy="122" rx="35" ry="12" className="fill-slate-800 stroke-slate-700 stroke-2" />
+            {/* Active Pec highlight */}
+            <ellipse cx="100" cy="122" rx="25" ry="8" 
+              className="fill-orange-500/20 stroke-orange-500 stroke-2"
+              style={{
+                transform: `scale(${1 / chestScale}, ${chestScale})`,
+                transformOrigin: '100px 122px',
+                filter: `drop-shadow(0 0 ${animValue * 6}px rgba(249, 115, 22, 0.3))`
+              }}
+            />
+
+            {/* Left Arm Connecting to Bar */}
+            <line x1="65" y1="122" x2="60" y2={barY} className="stroke-slate-700 stroke-[8] stroke-linecap-round" />
+            {/* Right Arm Connecting to Bar */}
+            <line x1="135" y1="122" x2="140" y2={barY} className="stroke-slate-700 stroke-[8] stroke-linecap-round" />
+
+            {/* Barbell Assembly */}
+            <g style={{
+              transform: `translateY(0px)`,
+              transition: 'transform 0.05s ease-out'
+            }}>
+              {/* Steel Bar */}
+              <line x1="20" y1={barY} x2="180" y2={barY} className="stroke-slate-400 stroke-[4]" />
+              {/* Left Plates */}
+              <rect x="20" y={barY - 15} width="12" height="30" rx="2" className="fill-slate-800 stroke-slate-700 stroke-2" />
+              <rect x="10" y={barY - 12} width="8" height="24" rx="2" className="fill-slate-900 stroke-slate-800 stroke-2" />
+              {/* Right Plates */}
+              <rect x="168" y={barY - 15} width="12" height="30" rx="2" className="fill-slate-800 stroke-slate-700 stroke-2" />
+              <rect x="182" y={barY - 12} width="8" height="24" rx="2" className="fill-slate-900 stroke-slate-800 stroke-2" />
+              {/* Grip markers */}
+              <circle cx="60" cy={barY} r="3" className="fill-orange-500" />
+              <circle cx="140" cy={barY} r="3" className="fill-orange-500" />
+            </g>
+          </svg>
+        );
+      }
+    },
+    flying: {
+      name: "Pec Deck Fly (Flying Machine)",
+      muscles: "Sternal Pecs, Clavicular Pecs, Anterior Delts",
+      calories: 5.5,
+      tips: "Maintain a soft bend in the elbows. Concentrate on pressing your elbows together at peak.",
+      render: () => {
+        const armAngle = animValue * 42; // Arms swing 0 to 42 degrees inwards
+        return (
+          <svg className="w-full h-full max-h-[300px]" viewBox="0 0 200 200">
+            {/* Machine Frame Backrest */}
+            <rect x="90" y="30" width="20" height="130" rx="5" className="fill-slate-900 stroke-slate-800 stroke-2" />
+            {/* Top Frame Pulley Bar */}
+            <line x1="50" y1="45" x2="150" y2="45" className="stroke-slate-800 stroke-[8] stroke-linecap-round" />
+            
+            {/* Human Chest (Top-down view) */}
+            <circle cx="100" cy="110" r="30" className="fill-slate-800 stroke-slate-700 stroke-2" />
+            {/* Pec Muscles highlighting */}
+            <path 
+              d="M 75 100 Q 100 125 125 100" 
+              className="stroke-orange-500 fill-none stroke-[8] stroke-linecap-round"
+              style={{
+                opacity: 0.2 + animValue * 0.8,
+                filter: `drop-shadow(0 0 ${animValue * 8}px rgba(249, 115, 22, 0.5))`
+              }}
+            />
+
+            {/* Left Machine Lever Pivoting around [60, 45] */}
+            <g style={{
+              transform: `rotate(${armAngle}deg)`,
+              transformOrigin: '60px 45px',
+              transition: 'transform 0.05s ease-out'
+            }}>
+              {/* Lever arm */}
+              <line x1="60" y1="45" x2="60" y2="125" className="stroke-slate-700 stroke-[6] stroke-linecap-round" />
+              {/* Handle */}
+              <line x1="60" y1="125" x2="72" y2="125" className="stroke-slate-500 stroke-[5] stroke-linecap-round" />
+              <circle cx="72" cy="125" r="4" className="fill-orange-500" />
+            </g>
+
+            {/* Right Machine Lever Pivoting around [140, 45] */}
+            <g style={{
+              transform: `rotate(-${armAngle}deg)`,
+              transformOrigin: '140px 45px',
+              transition: 'transform 0.05s ease-out'
+            }}>
+              {/* Lever arm */}
+              <line x1="140" y1="45" x2="140" y2="125" className="stroke-slate-700 stroke-[6] stroke-linecap-round" />
+              {/* Handle */}
+              <line x1="140" y1="125" x2="128" y2="125" className="stroke-slate-500 stroke-[5] stroke-linecap-round" />
+              <circle cx="128" cy="125" r="4" className="fill-orange-500" />
+            </g>
+          </svg>
+        );
+      }
+    },
+    smith: {
+      name: "Smith Machine Squat",
+      muscles: "Quadriceps, Gluteus Maximus, Hamstrings",
+      calories: 7.5,
+      tips: "Rest the bar on your traps, stand shoulder-width apart, and push your hips back as if sitting in a chair.",
+      render: () => {
+        const squatY = animValue * 45; // Hips slide down up to 45px
+        return (
+          <svg className="w-full h-full max-h-[300px]" viewBox="0 0 200 200">
+            {/* Smith Machine Tracks */}
+            <line x1="50" y1="30" x2="50" y2="170" className="stroke-slate-800 stroke-[6] stroke-linecap-round" />
+            <line x1="150" y1="30" x2="150" y2="170" className="stroke-slate-800 stroke-[6] stroke-linecap-round" />
+            
+            {/* Squatter Body Assembly */}
+            <g style={{
+              transform: `translateY(${squatY}px)`,
+              transition: 'transform 0.05s ease-out'
+            }}>
+              {/* Torso */}
+              <line x1="100" y1="75" x2="100" y2="115" className="stroke-slate-700 stroke-[12] stroke-linecap-round" />
+              {/* Head */}
+              <circle cx="100" cy="60" r="10" className="fill-slate-800 stroke-slate-700 stroke-2" />
+              
+              {/* Squatter thighs highlighting */}
+              <line x1="100" y1="115" x2="80" y2="140" 
+                className="stroke-slate-700 stroke-[10] stroke-linecap-round"
+                style={{
+                  transform: `rotate(-${squatY * 0.7}deg)`,
+                  transformOrigin: '100px 115px'
+                }}
+              />
+              {/* Quad Highlight */}
+              <line x1="100" y1="115" x2="80" y2="140" 
+                className="stroke-orange-500 stroke-[10] stroke-linecap-round"
+                style={{
+                  opacity: 0.2 + animValue * 0.8,
+                  transform: `rotate(-${squatY * 0.7}deg)`,
+                  transformOrigin: '100px 115px',
+                  filter: `drop-shadow(0 0 ${animValue * 6}px rgba(249, 115, 22, 0.4))`
+                }}
+              />
+
+              {/* Barbell rest on shoulders [100, 75] */}
+              <line x1="35" y1="75" x2="165" y2="75" className="stroke-slate-400 stroke-[4]" />
+              {/* Barbell weights */}
+              <rect x="35" y="65" width="10" height="20" rx="1" className="fill-slate-800 stroke-slate-700" />
+              <rect x="155" y="65" width="10" height="20" rx="1" className="fill-slate-800 stroke-slate-700" />
+            </g>
+
+            {/* Lower Leg (Stay static on ground) */}
+            <line x1="80" y1="140" x2="80" y2="175" className="stroke-slate-700 stroke-[10] stroke-linecap-round" />
+            {/* Ground feet */}
+            <line x1="72" y1="175" x2="90" y2="175" className="stroke-slate-800 stroke-[4] stroke-linecap-round" />
+          </svg>
+        );
+      }
+    }
+  };
 
   const openCheckout = (plan) => {
     setSelectedPlan(plan);
@@ -106,6 +370,7 @@ function App() {
         </div>
         <div className="hidden md:flex space-x-8 text-sm font-semibold text-slate-300">
           <a href="#features" className="hover:text-orange-500 transition-colors">Features</a>
+          <a href="#visualizer" className="hover:text-orange-500 transition-colors">Interactive Workouts</a>
           <a href="#plans" className="hover:text-orange-500 transition-colors">Plans</a>
           <a href="#testimonials" className="hover:text-orange-500 transition-colors">Testimonials</a>
           <a href="#faq" className="hover:text-orange-500 transition-colors">FAQ</a>
@@ -198,6 +463,105 @@ function App() {
           </div>
         </div>
       </header>
+
+      {/* Interactive Workout Visualizer Section */}
+      <section id="visualizer" className="py-24 bg-slate-950 border-t border-slate-900 px-6 relative overflow-hidden">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-orange-600/5 rounded-full blur-[150px] pointer-events-none"></div>
+        <div className="max-w-6xl mx-auto relative z-10">
+          <div className="text-center mb-16 space-y-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 text-orange-400 text-xs font-bold uppercase tracking-wider">
+              <Activity className="h-3.5 w-3.5" /> Interactive Real-time HUD
+            </div>
+            <h2 className="text-3xl md:text-5xl font-black text-white tracking-tight">Real-Time Workout Visualizer</h2>
+            <p className="text-slate-400 max-w-2xl mx-auto text-base">Select any machine to see biological muscle activation and real-time biometric tracking loops.</p>
+          </div>
+
+          <div className="grid lg:grid-cols-12 gap-12 items-center">
+            {/* Control Panel Menu */}
+            <div className="lg:col-span-5 space-y-4">
+              <h3 className="text-lg font-black text-white uppercase tracking-wider mb-6 flex items-center gap-2">
+                <Zap className="h-5 w-5 text-orange-500" /> Select Equipment
+              </h3>
+              
+              {[
+                { id: 'dumbbell', label: 'Dumbbell Curl', desc: 'Isolate and load the biceps.' },
+                { id: 'barbell', label: 'Barbell Bench Press', desc: 'Power through the pectoral chain.' },
+                { id: 'flying', label: 'Pec Deck Fly Machine', desc: 'Isolate inner chest squeeze.' },
+                { id: 'smith', label: 'Smith Machine Squat', desc: 'Drive quadricep & glute power.' }
+              ].map((ex) => (
+                <button
+                  key={ex.id}
+                  onClick={() => setActiveExercise(ex.id)}
+                  className={`w-full text-left p-5 rounded-2xl border transition-all flex items-center justify-between group active:scale-[0.98] ${
+                    activeExercise === ex.id 
+                      ? 'bg-slate-900 border-orange-500 shadow-lg shadow-orange-500/5' 
+                      : 'bg-slate-900/30 border-slate-900 hover:border-slate-800 hover:bg-slate-900/50'
+                  }`}
+                >
+                  <div>
+                    <h4 className={`font-bold text-base transition-colors ${activeExercise === ex.id ? 'text-orange-500' : 'text-white'}`}>
+                      {ex.label}
+                    </h4>
+                    <p className="text-xs text-slate-500 mt-1">{ex.desc}</p>
+                  </div>
+                  <ChevronRight className={`h-5 w-5 transition-transform ${activeExercise === ex.id ? 'text-orange-500 translate-x-1' : 'text-slate-600 group-hover:text-white'}`} />
+                </button>
+              ))}
+            </div>
+
+            {/* Animation Viewer Panel */}
+            <div className="lg:col-span-7 p-8 rounded-3xl bg-slate-900 border border-slate-800 relative flex flex-col justify-between h-[480px]">
+              {/* Exercise Details HUD Header */}
+              <div className="flex items-start justify-between border-b border-slate-800 pb-4">
+                <div>
+                  <span className="text-xs font-bold text-orange-500 uppercase tracking-widest">Active Visualizer</span>
+                  <h4 className="text-xl font-bold text-white mt-0.5">{exercises[activeExercise].name}</h4>
+                </div>
+                <div className="flex items-center gap-4 text-right">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase">Target Muscles</span>
+                    <p className="text-xs font-bold text-slate-300">{exercises[activeExercise].muscles}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* The Interactive SVG Canvas */}
+              <div className="flex-1 flex items-center justify-center p-4">
+                {exercises[activeExercise].render()}
+              </div>
+
+              {/* HUD Biometrics Panel */}
+              <div className="grid grid-cols-3 gap-4 border-t border-slate-800 pt-6">
+                <div className="bg-slate-950 p-3 rounded-xl border border-slate-900 text-center relative overflow-hidden">
+                  <span className="text-[10px] font-black text-slate-500 uppercase block tracking-wider">Completed Reps</span>
+                  <span className="text-2xl font-black text-white mt-1 block">{repCount}</span>
+                </div>
+                
+                <div className="bg-slate-950 p-3 rounded-xl border border-slate-900 text-center relative overflow-hidden">
+                  <span className="text-[10px] font-black text-slate-500 uppercase block tracking-wider">REP PROGRESS</span>
+                  <span className="text-2xl font-black text-orange-500 mt-1 block">{Math.round(repProgress)}%</span>
+                  {/* Progress Line */}
+                  <div className="absolute bottom-0 left-0 h-1 bg-orange-500" style={{ width: `${repProgress}%`, transition: 'width 0.05s ease-out' }}></div>
+                </div>
+
+                <div className="bg-slate-950 p-3 rounded-xl border border-slate-900 text-center relative overflow-hidden">
+                  <span className="text-[10px] font-black text-slate-500 uppercase block tracking-wider">CALORIES BURNT</span>
+                  <span className="text-2xl font-black text-white mt-1 block">{(repCount * exercises[activeExercise].calories).toFixed(1)} kcal</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Form Advice Box */}
+          <div className="mt-8 p-6 rounded-2xl bg-orange-500/5 border border-orange-500/10 flex items-start gap-4">
+            <RotateCw className="h-6 w-6 text-orange-500 shrink-0 mt-0.5 animate-spin" style={{ animationDuration: '6s' }} />
+            <div>
+              <span className="text-xs font-bold text-orange-400 uppercase tracking-widest">Coaching Tip for peak engagement</span>
+              <p className="text-sm text-slate-300 mt-1">{exercises[activeExercise].tips}</p>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Features Section */}
       <section id="features" className="py-24 bg-slate-950 border-t border-slate-900 px-6">
