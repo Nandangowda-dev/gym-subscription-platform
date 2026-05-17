@@ -1,0 +1,49 @@
+name: Gym Subscription Platform CI/CD
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test-backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+    steps:
+    - uses: actions/checkout@v4
+    - name: Use Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+    - name: Install dependencies
+      run: npm ci
+    # - name: Run tests (Uncomment when tests are added)
+    #   run: npm test
+
+  build-frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+    steps:
+    - uses: actions/checkout@v4
+    - name: Use Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+    - name: Install dependencies
+      run: npm ci
+    - name: Build
+      run: npm run build
+
+  # Example deployment job (requires configuration on the platform like Vercel or Render)
+  # deploy:
+  #   needs: [build-and-test-backend, build-frontend]
+  #   runs-on: ubuntu-latest
+  #   if: github.ref == 'refs/heads/main'
+  #   steps:
+  #   - name: Deploy to Production
+  #     run: echo "Deploying to production server..."
