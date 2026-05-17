@@ -19,14 +19,21 @@ const pool = new Pool({
   port: process.env.DB_PORT || 5432,
 });
 
-// Test DB Connection
-pool.connect((err, client, release) => {
-  if (err) {
-    return console.error('Error acquiring client', err.stack);
-  }
-  console.log('Connected to PostgreSQL database');
-  release();
+// Add an error handler for the pool to prevent the server from crashing
+pool.on('error', (err, client) => {
+  console.error('Unexpected error on idle client', err);
 });
+
+// Test DB Connection gracefully
+pool.connect()
+  .then(client => {
+    console.log('Connected to PostgreSQL database');
+    client.release();
+  })
+  .catch(err => {
+    console.warn('Warning: Could not connect to PostgreSQL database. The server will continue running, but database features will not work until PostgreSQL is set up.');
+    console.warn('Error details:', err.message);
+  });
 
 // Routes
 app.get('/', (req, res) => {
@@ -39,7 +46,7 @@ app.get('/api/plans', async (req, res) => {
     // In a real app, you would fetch these from the database
     // const result = await pool.query('SELECT * FROM plans');
     // res.json(result.rows);
-    
+
     // Mock data for initial setup
     const plans = [
       { id: 1, name: 'Basic', price: 29, features: ['Full gym access', 'Locker room access'] },
