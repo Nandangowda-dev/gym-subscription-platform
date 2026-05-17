@@ -26,7 +26,11 @@ import {
   Plus,
   LogOut,
   Sliders,
-  AlertCircle
+  AlertCircle,
+  Phone,
+  Calendar,
+  Layers,
+  FileText
 } from 'lucide-react';
 
 function App() {
@@ -66,11 +70,23 @@ function App() {
   const [trialEmail, setTrialEmail] = useState('');
   const [trialPhone, setTrialPhone] = useState('');
 
-  // Admin Control Panel Manage States
-  const [adminPlans, setAdminPlans] = useState([]);
-  const [adminTrainers, setAdminTrainers] = useState([]);
+  // Admin Plan Creation states
+  const [newPlanName, setNewPlanName] = useState('');
+  const [newPlanPrice, setNewPlanPrice] = useState('');
+  const [newPlanFeatures, setNewPlanFeatures] = useState('');
+
+  // Admin Trainer Creation states
   const [newTrainerName, setNewTrainerName] = useState('');
   const [newTrainerSpecialty, setNewTrainerSpecialty] = useState('');
+  const [newTrainerAge, setNewTrainerAge] = useState('');
+  const [newTrainerGender, setNewTrainerGender] = useState('Male');
+  const [newTrainerEmail, setNewTrainerEmail] = useState('');
+  const [newTrainerPhone, setNewTrainerPhone] = useState('');
+  const [newTrainerImage, setNewTrainerImage] = useState('');
+
+  // Admin Control Panel Management arrays
+  const [adminPlans, setAdminPlans] = useState([]);
+  const [adminTrainers, setAdminTrainers] = useState([]);
 
   // Fetch Public Plans & Trainers
   const fetchPublicData = () => {
@@ -78,7 +94,7 @@ function App() {
     fetch('https://gym-backend-ivqp.onrender.com/api/plans')
       .then(res => res.json())
       .then(data => {
-        setPlans(data);
+        if (!data.error) setPlans(data);
         setLoadingPlans(false);
       })
       .catch(err => {
@@ -91,19 +107,19 @@ function App() {
         setLoadingPlans(false);
       });
 
-    // 2. Fetch Trainers
+    // 2. Fetch Trainers (Masked version - contains no PII age, gender, email, phone)
     fetch('https://gym-backend-ivqp.onrender.com/api/trainers')
       .then(res => res.json())
       .then(data => {
-        setTrainers(data);
+        if (!data.error) setTrainers(data);
         setLoadingTrainers(false);
       })
       .catch(err => {
         console.error('Error fetching trainers, using fallback.', err);
         setTrainers([
-          { id: 1, name: 'Coach Rajesh', specialty: 'Bodybuilding & Strength', is_active: true },
-          { id: 2, name: 'Coach Priya', specialty: 'CrossFit & Cardio', is_active: true },
-          { id: 3, name: 'Coach Amit', specialty: 'Yoga & Core Recovery', is_active: true }
+          { id: 1, name: 'Coach Rajesh', specialty: 'Bodybuilding & Strength', image_url: 'https://images.unsplash.com/photo-1567013127542-490d757e51fc?w=150&auto=format&fit=crop&q=80', is_active: true },
+          { id: 2, name: 'Coach Priya', specialty: 'CrossFit & Cardio', image_url: 'https://images.unsplash.com/photo-1548690312-e3b507d8c110?w=150&auto=format&fit=crop&q=80', is_active: true },
+          { id: 3, name: 'Coach Amit', specialty: 'Yoga & Core Recovery', image_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80', is_active: true }
         ]);
         setLoadingTrainers(false);
       });
@@ -411,27 +427,82 @@ function App() {
     setShowAdminPanel(false);
   };
 
-  // Admin: Update Plan Pricing/Active Status
-  const handleAdminPlanUpdate = (id, newPrice, isActive) => {
-    fetch(`https://gym-backend-ivqp.onrender.com/api/admin/plans/${id}`, {
-      method: 'PUT',
+  // Admin: Create Subscription Plan (Dynamic Options & Custom Feature Sets!)
+  const handleAdminCreatePlan = (e) => {
+    e.preventDefault();
+    if (!newPlanName || !newPlanPrice || !newPlanFeatures) return;
+
+    // Parse features comma separated list into string array
+    const parsedFeatures = newPlanFeatures.split(',').map(f => f.trim()).filter(f => f !== '');
+
+    fetch('https://gym-backend-ivqp.onrender.com/api/admin/plans', {
+      method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${userToken}` 
       },
-      body: JSON.stringify({ price: parseInt(newPrice), is_active: isActive })
+      body: JSON.stringify({ 
+        name: newPlanName, 
+        price: parseInt(newPlanPrice), 
+        features: parsedFeatures 
+      })
     })
       .then(res => res.json())
       .then(data => {
         if (!data.error) {
-          // Re-fetch public data immediately so landing page updates live!
+          setNewPlanName('');
+          setNewPlanPrice('');
+          setNewPlanFeatures('');
           fetchPublicData();
           fetchAdminData();
         }
       });
   };
 
-  // Admin: Add Trainer
+  // Admin: Update Plan Details/Options (Name, Price, Features, Active Status)
+  const handleAdminPlanUpdate = (id, planName, planPrice, planFeaturesStr, planIsActive) => {
+    const parsedFeatures = Array.isArray(planFeaturesStr) 
+      ? planFeaturesStr 
+      : planFeaturesStr.split(',').map(f => f.trim()).filter(f => f !== '');
+
+    fetch(`https://gym-backend-ivqp.onrender.com/api/admin/plans/${id}`, {
+      method: 'PUT',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${userToken}` 
+      },
+      body: JSON.stringify({ 
+        name: planName,
+        price: parseInt(planPrice), 
+        features: parsedFeatures,
+        is_active: planIsActive 
+      })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (!data.error) {
+          fetchPublicData();
+          fetchAdminData();
+        }
+      });
+  };
+
+  // Admin: Delete Plan
+  const handleAdminPlanDelete = (id) => {
+    fetch(`https://gym-backend-ivqp.onrender.com/api/admin/plans/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${userToken}` }
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (!data.error) {
+          fetchPublicData();
+          fetchAdminData();
+        }
+      });
+  };
+
+  // Admin: Add Trainer (Collects age, gender, email, phone, image_url)
   const handleAdminAddTrainer = (e) => {
     e.preventDefault();
     if (!newTrainerName || !newTrainerSpecialty) return;
@@ -442,13 +513,25 @@ function App() {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${userToken}` 
       },
-      body: JSON.stringify({ name: newTrainerName, specialty: newTrainerSpecialty })
+      body: JSON.stringify({ 
+        name: newTrainerName, 
+        specialty: newTrainerSpecialty,
+        age: newTrainerAge ? parseInt(newTrainerAge) : null,
+        gender: newTrainerGender,
+        email: newTrainerEmail || null,
+        phone: newTrainerPhone || null,
+        image_url: newTrainerImage || 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=150&auto=format&fit=crop&q=80'
+      })
     })
       .then(res => res.json())
       .then(data => {
         if (!data.error) {
           setNewTrainerName('');
           setNewTrainerSpecialty('');
+          setNewTrainerAge('');
+          setNewTrainerEmail('');
+          setNewTrainerPhone('');
+          setNewTrainerImage('');
           fetchPublicData();
           fetchAdminData();
         }
@@ -466,6 +549,11 @@ function App() {
       body: JSON.stringify({ 
         name: trainer.name, 
         specialty: trainer.specialty, 
+        age: trainer.age,
+        gender: trainer.gender,
+        email: trainer.email,
+        phone: trainer.phone,
+        image_url: trainer.image_url,
         is_active: !trainer.is_active 
       })
     })
@@ -592,7 +680,7 @@ function App() {
         </div>
       </nav>
 
-      {/* DYNAMIC SECURE ADMIN CONTROL HUD PANEL PANEL */}
+      {/* DYNAMIC SECURE ADMIN CONTROL HUD PANEL */}
       {showAdminPanel && currentUser?.role === 'admin' ? (
         <main className="max-w-7xl mx-auto px-6 md:px-12 py-12 space-y-12 relative z-10 animate-fade-in">
           <div className="p-8 rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl relative overflow-hidden">
@@ -610,110 +698,251 @@ function App() {
               </div>
             </div>
 
-            {/* 1. Plans Price Management */}
+            {/* A. Subscription Tier Panel */}
             <div className="space-y-6 mb-12">
               <h3 className="text-xl font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-2">
-                <Sliders className="h-5 w-5 text-orange-500" /> Subscription Tier Controls (₹ INR)
+                <Sliders className="h-5 w-5 text-orange-500" /> Subscription Plan Creator & Config
               </h3>
+
+              {/* Add New Subscription Plan Form (DYNAMIC CREATION!) */}
+              <form onSubmit={handleAdminCreatePlan} className="bg-slate-950 p-6 rounded-2xl border border-slate-800 grid md:grid-cols-4 gap-4 items-end">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase block">Plan Name</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. Platinum Tier" 
+                    value={newPlanName}
+                    onChange={(e) => setNewPlanName(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase block">Monthly Price (₹ INR)</label>
+                  <input 
+                    type="number" 
+                    placeholder="e.g. 3999" 
+                    value={newPlanPrice}
+                    onChange={(e) => setNewPlanPrice(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500"
+                    required
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2 flex gap-4 items-end">
+                  <div className="flex-1 space-y-2">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase block">Features / Options (Comma Separated)</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. 24/7 Access, Private Sauna, Nutrition Plans" 
+                      value={newPlanFeatures}
+                      onChange={(e) => setNewPlanFeatures(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500"
+                      required
+                    />
+                  </div>
+                  <button type="submit" className="py-3.5 px-6 bg-orange-500 text-slate-950 font-black rounded-xl hover:bg-orange-400 transition-colors flex items-center gap-1.5 shrink-0">
+                    <Plus className="h-5 w-5" /> Add Plan
+                  </button>
+                </div>
+              </form>
               
-              <div className="grid md:grid-cols-3 gap-6">
+              {/* Existing Plans Controls */}
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {adminPlans.map((ap) => (
-                  <div key={ap.id} className="p-6 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
-                    <div className="flex justify-between items-center">
-                      <h4 className="font-extrabold text-lg text-white">{ap.name} Plan</h4>
-                      <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full ${ap.is_active ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
-                        {ap.is_active ? 'Active' : 'Inactive'}
-                      </span>
+                  <div key={ap.id} className="p-6 rounded-2xl bg-slate-950 border border-slate-800 space-y-4 flex flex-col justify-between">
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center">
+                        <input 
+                          type="text" 
+                          value={ap.name}
+                          onChange={(e) => {
+                            const updated = [...adminPlans];
+                            const idx = updated.findIndex(p => p.id === ap.id);
+                            updated[idx].name = e.target.value;
+                            setAdminPlans(updated);
+                          }}
+                          className="bg-transparent border-b border-transparent hover:border-slate-800 focus:border-orange-500 text-lg font-black text-white focus:outline-none w-2/3"
+                        />
+                        <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full ${ap.is_active ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+                          {ap.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-bold text-slate-500 uppercase block">Price (₹)</label>
+                          <input 
+                            type="number" 
+                            value={ap.price} 
+                            onChange={(e) => {
+                              const updated = [...adminPlans];
+                              const idx = updated.findIndex(p => p.id === ap.id);
+                              updated[idx].price = e.target.value;
+                              setAdminPlans(updated);
+                            }}
+                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white font-bold focus:outline-none focus:border-orange-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-bold text-slate-500 uppercase block">Active Toggle</label>
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              const updated = [...adminPlans];
+                              const idx = updated.findIndex(p => p.id === ap.id);
+                              updated[idx].is_active = !updated[idx].is_active;
+                              setAdminPlans(updated);
+                            }}
+                            className={`w-full py-2 rounded-xl text-xs font-black transition-colors ${
+                              ap.is_active 
+                                ? 'bg-red-500/10 text-red-400 border border-red-500/20' 
+                                : 'bg-green-500/10 text-green-400 border border-green-500/20'
+                            }`}
+                          >
+                            {ap.is_active ? 'Deactivate' : 'Activate'}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-slate-500 uppercase block">Features / Options (Comma Separated)</label>
+                        <textarea 
+                          value={Array.isArray(ap.features) ? ap.features.join(', ') : ap.features} 
+                          onChange={(e) => {
+                            const updated = [...adminPlans];
+                            const idx = updated.findIndex(p => p.id === ap.id);
+                            updated[idx].features = e.target.value;
+                            setAdminPlans(updated);
+                          }}
+                          rows="3"
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-orange-500 resize-none"
+                        />
+                      </div>
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase block">Monthly Price (₹)</label>
-                      <input 
-                        type="number" 
-                        value={ap.price} 
-                        onChange={(e) => {
-                          const updated = [...adminPlans];
-                          const idx = updated.findIndex(p => p.id === ap.id);
-                          updated[idx].price = e.target.value;
-                          setAdminPlans(updated);
-                        }}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white font-bold focus:outline-none focus:border-orange-500"
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between pt-2">
-                      <span className="text-xs text-slate-400 font-semibold">Active Status</span>
+                    <div className="pt-4 flex gap-3">
                       <button 
-                        onClick={() => {
-                          const updated = [...adminPlans];
-                          const idx = updated.findIndex(p => p.id === ap.id);
-                          updated[idx].is_active = !updated[idx].is_active;
-                          setAdminPlans(updated);
-                          handleAdminPlanUpdate(ap.id, ap.price, updated[idx].is_active);
-                        }}
-                        className={`text-xs font-black px-4 py-2 rounded-xl transition-all active:scale-95 ${
-                          ap.is_active 
-                            ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20' 
-                            : 'bg-green-500/10 text-green-400 hover:bg-green-500/20'
-                        }`}
+                        onClick={() => handleAdminPlanDelete(ap.id)}
+                        className="p-3 bg-red-500/10 text-red-500 rounded-xl border border-red-500/20 hover:bg-red-500/20 transition-colors shrink-0"
+                        title="Delete Subscription Tier"
                       >
-                        {ap.is_active ? 'Deactivate' : 'Activate'}
+                        <Trash2 className="h-5 w-5" />
+                      </button>
+                      <button 
+                        onClick={() => handleAdminPlanUpdate(ap.id, ap.name, ap.price, ap.features, ap.is_active)}
+                        className="flex-1 py-3 bg-orange-500 text-slate-950 font-black rounded-xl hover:bg-orange-400 transition-colors shadow-lg shadow-orange-500/10 text-xs"
+                      >
+                        Save Configuration
                       </button>
                     </div>
-
-                    <button 
-                      onClick={() => handleAdminPlanUpdate(ap.id, ap.price, ap.is_active)}
-                      className="w-full py-3 bg-orange-500 text-slate-950 font-black rounded-xl hover:bg-orange-400 transition-colors shadow-lg shadow-orange-500/10"
-                    >
-                      Save Configuration
-                    </button>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* 2. Trainers Management */}
+            {/* B. Trainers Management Panel (Collects demographics - secure PII database storage) */}
             <div className="space-y-6">
               <h3 className="text-xl font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-2">
-                <Users className="h-5 w-5 text-orange-500" /> Trainer Management Panel
+                <Users className="h-5 w-5 text-orange-500" /> Trainer Management Panel (PII Database Mode)
               </h3>
 
-              {/* Add Trainer Form */}
-              <form onSubmit={handleAdminAddTrainer} className="bg-slate-950 p-6 rounded-2xl border border-slate-800 grid md:grid-cols-3 gap-4 items-end">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase block">Trainer Full Name</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. Coach Ramesh" 
-                    value={newTrainerName}
-                    onChange={(e) => setNewTrainerName(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500"
-                    required
-                  />
+              {/* Add Trainer Form (Full demographic PII data collection!) */}
+              <form onSubmit={handleAdminAddTrainer} className="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-4">
+                <div className="grid md:grid-cols-4 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase block">Trainer Full Name</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Coach Rajesh" 
+                      value={newTrainerName}
+                      onChange={(e) => setNewTrainerName(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase block">Specialty / Category</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. CrossFit & Calisthenics" 
+                      value={newTrainerSpecialty}
+                      onChange={(e) => setNewTrainerSpecialty(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase block">Age</label>
+                    <input 
+                      type="number" 
+                      placeholder="e.g. 28" 
+                      value={newTrainerAge}
+                      onChange={(e) => setNewTrainerAge(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase block">Gender</label>
+                    <select 
+                      value={newTrainerGender} 
+                      onChange={(e) => setNewTrainerGender(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500"
+                    >
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Non-Binary">Non-Binary</option>
+                    </select>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase block">Specialty / Category</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. CrossFit & Calisthenics" 
-                    value={newTrainerSpecialty}
-                    onChange={(e) => setNewTrainerSpecialty(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500"
-                    required
-                  />
+
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase block">Email Address (Secure)</label>
+                    <input 
+                      type="email" 
+                      placeholder="e.g. rajesh@fitcore.in" 
+                      value={newTrainerEmail}
+                      onChange={(e) => setNewTrainerEmail(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase block">Phone Number (Secure)</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. +91 98765 43210" 
+                      value={newTrainerPhone}
+                      onChange={(e) => setNewTrainerPhone(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase block">Profile Image URL</label>
+                    <input 
+                      type="text" 
+                      placeholder="https://example.com/image.jpg" 
+                      value={newTrainerImage}
+                      onChange={(e) => setNewTrainerImage(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500"
+                    />
+                  </div>
                 </div>
-                <button type="submit" className="py-3.5 bg-orange-500 text-slate-950 font-black rounded-xl hover:bg-orange-400 transition-colors flex items-center justify-center gap-2">
-                  <Plus className="h-5 w-5" /> Add New Trainer
+
+                <button type="submit" className="w-full py-4 bg-orange-500 text-slate-950 font-black rounded-xl hover:bg-orange-400 transition-colors flex items-center justify-center gap-2">
+                  <Plus className="h-5 w-5" /> Hire & Register New Trainer Profile
                 </button>
               </form>
 
-              {/* Trainers Table */}
+              {/* Trainers Data Table - Shows all demographic fields inside secure admin console */}
               <div className="rounded-2xl border border-slate-800 overflow-hidden bg-slate-950">
                 <table className="w-full text-left text-sm">
                   <thead>
-                    <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 text-xs font-black uppercase tracking-wider">
+                    <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 text-[10px] font-black uppercase tracking-wider">
+                      <th className="p-4">Profile Image</th>
                       <th className="p-4">Trainer Name</th>
                       <th className="p-4">Specialty</th>
+                      <th className="p-4">Demographics</th>
+                      <th className="p-4">Contact (Secure)</th>
                       <th className="p-4">Status</th>
                       <th className="p-4 text-right">Actions</th>
                     </tr>
@@ -721,30 +950,50 @@ function App() {
                   <tbody className="divide-y divide-slate-900">
                     {adminTrainers.map((t) => (
                       <tr key={t.id} className="hover:bg-slate-900/30">
+                        <td className="p-4">
+                          <img 
+                            src={t.image_url || 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=150&auto=format&fit=crop&q=80'} 
+                            alt={t.name}
+                            className="w-12 h-12 object-cover rounded-xl border border-slate-800"
+                            onError={(e) => {
+                              e.target.src = 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=150&auto=format&fit=crop&q=80';
+                            }}
+                          />
+                        </td>
                         <td className="p-4 font-bold text-white">{t.name}</td>
                         <td className="p-4 text-slate-400">{t.specialty}</td>
+                        <td className="p-4 text-slate-400">
+                          <span className="text-xs block font-bold text-slate-300">Age: {t.age || 'N/A'}</span>
+                          <span className="text-[10px] block text-slate-500 font-semibold">{t.gender || 'N/A'}</span>
+                        </td>
+                        <td className="p-4">
+                          <a href={`mailto:${t.email}`} className="text-xs block text-orange-500/80 hover:underline">{t.email || 'N/A'}</a>
+                          <span className="text-[10px] block text-slate-500">{t.phone || 'N/A'}</span>
+                        </td>
                         <td className="p-4">
                           <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full ${t.is_active ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
                             {t.is_active ? 'Active' : 'Inactive'}
                           </span>
                         </td>
-                        <td className="p-4 text-right flex justify-end gap-3">
-                          <button 
-                            onClick={() => handleAdminTrainerToggle(t)}
-                            className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-colors ${
-                              t.is_active 
-                                ? 'border-red-900 text-red-400 hover:bg-red-950/20' 
-                                : 'border-green-900 text-green-400 hover:bg-green-950/20'
-                            }`}
-                          >
-                            {t.is_active ? 'Disable' : 'Enable'}
-                          </button>
-                          <button 
-                            onClick={() => handleAdminTrainerDelete(t.id)}
-                            className="p-1.5 text-slate-500 hover:text-red-500 transition-colors"
-                          >
-                            <Trash2 className="h-4.5 w-4.5" />
-                          </button>
+                        <td className="p-4 text-right">
+                          <div className="flex justify-end gap-3 items-center">
+                            <button 
+                              onClick={() => handleAdminTrainerToggle(t)}
+                              className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-colors ${
+                                t.is_active 
+                                  ? 'border-red-900 text-red-400 hover:bg-red-950/20' 
+                                  : 'border-green-900 text-green-400 hover:bg-green-950/20'
+                              }`}
+                            >
+                              {t.is_active ? 'Disable' : 'Enable'}
+                            </button>
+                            <button 
+                              onClick={() => handleAdminTrainerDelete(t.id)}
+                              className="p-1.5 text-slate-500 hover:text-red-500 transition-colors"
+                            >
+                              <Trash2 className="h-4.5 w-4.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -950,7 +1199,7 @@ function App() {
             </div>
           </section>
 
-          {/* Pricing Section (Dynamic INR ₹ pricing) */}
+          {/* Pricing Section (Dynamic INR ₹ pricing - unlimited plan support!) */}
           <section id="plans" className="py-24 bg-slate-950 border-t border-slate-900 px-6">
             <div className="max-w-6xl mx-auto">
               <div className="text-center mb-16 space-y-4">
@@ -964,9 +1213,9 @@ function App() {
                   <p className="mt-4 text-slate-400">Loading plans...</p>
                 </div>
               ) : (
-                <div className="grid md:grid-cols-3 gap-8 items-stretch">
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 items-stretch justify-center">
                   {plans.map((plan) => {
-                    const isPremium = plan.name.toLowerCase() === 'premium';
+                    const isPremium = plan.name.toLowerCase().includes('premium') || plan.name.toLowerCase().includes('most');
                     return (
                       <div 
                         key={plan.id}
@@ -988,7 +1237,7 @@ function App() {
                             <span className="text-sm font-semibold text-slate-500">/mo</span>
                           </div>
                           <ul className="mt-8 space-y-4">
-                            {plan.features.map((feature, idx) => (
+                            {(Array.isArray(plan.features) ? plan.features : []).map((feature, idx) => (
                               <li key={idx} className="flex items-center gap-3 text-slate-300 text-sm">
                                 <span className="p-1 rounded-full bg-green-500/10 text-green-400">
                                   <Check className="h-3.5 w-3.5" />
@@ -1016,7 +1265,7 @@ function App() {
             </div>
           </section>
 
-          {/* Dynamic Trainers Section */}
+          {/* Dynamic Masked Trainers Section - SECURE FROM PII LEAKAGE */}
           <section id="trainers" className="py-24 bg-slate-950 border-t border-slate-900 px-6">
             <div className="max-w-6xl mx-auto">
               <div className="text-center mb-16 space-y-4">
@@ -1034,13 +1283,22 @@ function App() {
               ) : (
                 <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-8">
                   {trainers.map((t) => (
-                    <div key={t.id} className="p-6 rounded-3xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition-all flex items-center gap-4 group">
-                      <div className="w-14 h-14 bg-orange-500/10 text-orange-500 rounded-2xl flex items-center justify-center font-black text-xl group-hover:scale-105 transition-transform">
-                        {t.name.split(' ').map(n => n[0]).join('')}
+                    <div key={t.id} className="rounded-3xl bg-slate-900 border border-slate-800 overflow-hidden hover:border-orange-500/40 transition-all flex flex-col group">
+                      <div className="h-72 w-full overflow-hidden bg-slate-950 relative">
+                        <img 
+                          src={t.image_url || 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=280&auto=format&fit=crop&q=80'} 
+                          alt={t.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          onError={(e) => {
+                            e.target.src = 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=280&auto=format&fit=crop&q=80';
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 to-transparent"></div>
                       </div>
-                      <div>
-                        <h4 className="font-extrabold text-white text-lg">{t.name}</h4>
-                        <p className="text-sm text-slate-400 mt-0.5">{t.specialty}</p>
+                      <div className="p-6 relative -mt-8 bg-slate-900 rounded-t-3xl border-t border-slate-800/80">
+                        <h4 className="font-extrabold text-white text-xl">{t.name}</h4>
+                        <span className="text-xs font-bold text-orange-500 tracking-wider block mt-1 uppercase">{t.specialty}</span>
+                        {/* Dynamic User Level security confirms NO sensitive fields exist in the DOM */}
                       </div>
                     </div>
                   ))}
@@ -1321,7 +1579,7 @@ function App() {
         </div>
       )}
 
-      {/* CHECKOUT MODAL (Dynamic Rupees ₹) */}
+      {/* CHECKOUT MODAL */}
       {activeModal === 'checkout' && selectedPlan && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-8 relative shadow-2xl overflow-hidden">

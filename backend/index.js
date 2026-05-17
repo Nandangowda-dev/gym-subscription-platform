@@ -42,7 +42,7 @@ pool.connect()
     console.warn('Reason:', err.message);
   });
 
-// In-Memory Database Fallbacks (To keep application 100% operational instantly)
+// In-Memory Database Fallbacks
 let inMemoryPlans = [
   { id: 1, name: 'Basic', price: 1499, features: ['Full gym access', 'Locker room access', '1 complementary fitness assessment'], is_active: true },
   { id: 2, name: 'Premium', price: 2999, features: ['Full gym access', 'Locker room access', 'Unlimited group classes', 'Custom workout plan'], is_active: true },
@@ -50,9 +50,39 @@ let inMemoryPlans = [
 ];
 
 let inMemoryTrainers = [
-  { id: 1, name: 'Coach Rajesh', specialty: 'Bodybuilding & Strength', is_active: true },
-  { id: 2, name: 'Coach Priya', specialty: 'CrossFit & Cardio', is_active: true },
-  { id: 3, name: 'Coach Amit', specialty: 'Yoga & Core Recovery', is_active: true }
+  { 
+    id: 1, 
+    name: 'Coach Rajesh', 
+    specialty: 'Bodybuilding & Strength', 
+    age: 32, 
+    gender: 'Male', 
+    email: 'rajesh@fitcore.in', 
+    phone: '+91 98765 43210', 
+    image_url: 'https://images.unsplash.com/photo-1567013127542-490d757e51fc?w=150&auto=format&fit=crop&q=80', 
+    is_active: true 
+  },
+  { 
+    id: 2, 
+    name: 'Coach Priya', 
+    specialty: 'CrossFit & Cardio', 
+    age: 28, 
+    gender: 'Female', 
+    email: 'priya@fitcore.in', 
+    phone: '+91 87654 32109', 
+    image_url: 'https://images.unsplash.com/photo-1548690312-e3b507d8c110?w=150&auto=format&fit=crop&q=80', 
+    is_active: true 
+  },
+  { 
+    id: 3, 
+    name: 'Coach Amit', 
+    specialty: 'Yoga & Core Recovery', 
+    age: 35, 
+    gender: 'Male', 
+    email: 'amit@fitcore.in', 
+    phone: '+91 76543 21098', 
+    image_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80', 
+    is_active: true 
+  }
 ];
 
 // Pre-seeded Admin User (For secure access)
@@ -65,7 +95,7 @@ const defaultAdmin = {
 
 let inMemoryUsers = [defaultAdmin];
 
-// JWT Authentication Middleware (Security Gate)
+// JWT Authentication Middleware
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -88,12 +118,12 @@ const requireAdmin = (req, res, next) => {
 };
 
 // ==========================================
-// 1. AUTHENTICATION ENDPOINTS (SECURE)
+// 1. AUTHENTICATION ENDPOINTS
 // ==========================================
 
 // Register Route
 app.post('/api/auth/register', async (req, res) => {
-  const { name, email, password } = req.reqValidateBody = req.body;
+  const { name, email, password } = req.body;
   
   if (!name || !email || !password) {
     return res.status(400).json({ error: 'All fields are required' });
@@ -104,7 +134,6 @@ app.post('/api/auth/register', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     if (dbConnected) {
-      // Secure Parameterized Query (SQL Injection Prevention)
       const userCheck = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
       if (userCheck.rows.length > 0) {
         return res.status(400).json({ error: 'Email already exists' });
@@ -139,7 +168,6 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     let user;
     if (dbConnected) {
-      // Secure Parameterized Query (SQL Injection Prevention)
       const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
       user = result.rows[0];
     } else {
@@ -166,7 +194,7 @@ app.post('/api/auth/login', async (req, res) => {
 // 2. DYNAMIC PLANS ENDPOINTS
 // ==========================================
 
-// GET Active Plans (Public Site)
+// GET Active Plans (Public Site - returns active only)
 app.get('/api/plans', async (req, res) => {
   try {
     if (dbConnected) {
@@ -195,21 +223,52 @@ app.get('/api/admin/plans', authenticateToken, requireAdmin, async (req, res) =>
   }
 });
 
-// UPDATE Plan Price/Active Status (Admin Only)
-app.put('/api/admin/plans/:id', authenticateToken, requireAdmin, async (req, res) => {
-  const { id } = req.params;
-  const { price, is_active } = req.body;
+// ADD New Subscription Plan (Admin Only - Dynamic Options!)
+app.post('/api/admin/plans', authenticateToken, requireAdmin, async (req, res) => {
+  const { name, price, features } = req.body;
 
-  if (price === undefined || is_active === undefined) {
-    return res.status(400).json({ error: 'Price and Active status are required' });
+  if (!name || price === undefined || !features) {
+    return res.status(400).json({ error: 'Plan name, price, and features are required' });
   }
 
   try {
     if (dbConnected) {
-      // Secure Parameterized Update
       const result = await pool.query(
-        'UPDATE plans SET price = $1, is_active = $2 WHERE id = $3 RETURNING *',
-        [price, is_active, id]
+        'INSERT INTO plans (name, price, features, is_active) VALUES ($1, $2, $3, true) RETURNING *',
+        [name, parseInt(price), features]
+      );
+      res.status(201).json(result.rows[0]);
+    } else {
+      const newPlan = { 
+        id: inMemoryPlans.length + 1, 
+        name, 
+        price: parseInt(price), 
+        features, 
+        is_active: true 
+      };
+      inMemoryPlans.push(newPlan);
+      res.status(201).json(newPlan);
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create subscription plan' });
+  }
+});
+
+// UPDATE Plan Details, Features & Price (Admin Only)
+app.put('/api/admin/plans/:id', authenticateToken, requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { name, price, features, is_active } = req.body;
+
+  if (!name || price === undefined || !features || is_active === undefined) {
+    return res.status(400).json({ error: 'Name, price, features, and active status are required' });
+  }
+
+  try {
+    if (dbConnected) {
+      const result = await pool.query(
+        'UPDATE plans SET name = $1, price = $2, features = $3, is_active = $4 WHERE id = $5 RETURNING *',
+        [name, parseInt(price), features, is_active, id]
       );
       if (result.rows.length === 0) return res.status(404).json({ error: 'Plan not found' });
       res.json(result.rows[0]);
@@ -217,7 +276,9 @@ app.put('/api/admin/plans/:id', authenticateToken, requireAdmin, async (req, res
       const idx = inMemoryPlans.findIndex(p => p.id === parseInt(id));
       if (idx === -1) return res.status(404).json({ error: 'Plan not found' });
       
+      inMemoryPlans[idx].name = name;
       inMemoryPlans[idx].price = parseInt(price);
+      inMemoryPlans[idx].features = features;
       inMemoryPlans[idx].is_active = !!is_active;
       res.json(inMemoryPlans[idx]);
     }
@@ -227,26 +288,51 @@ app.put('/api/admin/plans/:id', authenticateToken, requireAdmin, async (req, res
   }
 });
 
+// DELETE Subscription Plan (Admin Only)
+app.delete('/api/admin/plans/:id', authenticateToken, requireAdmin, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    if (dbConnected) {
+      await pool.query('DELETE FROM plans WHERE id = $1', [id]);
+      res.json({ message: 'Plan deleted successfully' });
+    } else {
+      const idx = inMemoryPlans.findIndex(p => p.id === parseInt(id));
+      if (idx === -1) return res.status(404).json({ error: 'Plan not found' });
+
+      inMemoryPlans.splice(idx, 1);
+      res.json({ message: 'Plan deleted successfully' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete plan' });
+  }
+});
+
 // ==========================================
-// 3. DYNAMIC TRAINERS ENDPOINTS
+// 3. DYNAMIC SECURE TRAINERS ENDPOINTS
 // ==========================================
 
-// GET Active Trainers (Public Site)
+// GET Active Trainers (Public Landing Page - STRICT MASKS FOR PRIVACY!)
+// Masks PII: Age, Gender, Email, and Phone are completely hidden from non-admin requests!
 app.get('/api/trainers', async (req, res) => {
   try {
     if (dbConnected) {
-      const result = await pool.query('SELECT * FROM trainers WHERE is_active = true ORDER BY id ASC');
+      // Secure Select: Explicitly fetch only non-PII fields
+      const result = await pool.query('SELECT id, name, specialty, image_url FROM trainers WHERE is_active = true ORDER BY id ASC');
       res.json(result.rows);
     } else {
-      const activeTrainers = inMemoryTrainers.filter(t => t.is_active);
-      res.json(activeTrainers);
+      // In-Memory mask filter
+      const activeTrainersMasked = inMemoryTrainers
+        .filter(t => t.is_active)
+        .map(({ id, name, specialty, image_url }) => ({ id, name, specialty, image_url }));
+      res.json(activeTrainersMasked);
     }
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch active trainers' });
   }
 });
 
-// GET All Trainers (Admin Panel)
+// GET All Trainers (Admin Panel - Returns all fields for secure database management)
 app.get('/api/admin/trainers', authenticateToken, requireAdmin, async (req, res) => {
   try {
     if (dbConnected) {
@@ -260,9 +346,9 @@ app.get('/api/admin/trainers', authenticateToken, requireAdmin, async (req, res)
   }
 });
 
-// ADD New Trainer (Admin Only)
+// ADD New Trainer (Admin Only - Collects full secure demographic profile details)
 app.post('/api/admin/trainers', authenticateToken, requireAdmin, async (req, res) => {
-  const { name, specialty } = req.body;
+  const { name, specialty, age, gender, email, phone, image_url } = req.body;
 
   if (!name || !specialty) {
     return res.status(400).json({ error: 'Trainer name and specialty are required' });
@@ -271,30 +357,41 @@ app.post('/api/admin/trainers', authenticateToken, requireAdmin, async (req, res
   try {
     if (dbConnected) {
       const result = await pool.query(
-        'INSERT INTO trainers (name, specialty, is_active) VALUES ($1, $2, true) RETURNING *',
-        [name, specialty]
+        'INSERT INTO trainers (name, specialty, age, gender, email, phone, image_url, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, true) RETURNING *',
+        [name, specialty, age ? parseInt(age) : null, gender || null, email || null, phone || null, image_url || null]
       );
-      res.status(211).json(result.rows[0]);
+      res.status(201).json(result.rows[0]);
     } else {
-      const newTrainer = { id: inMemoryTrainers.length + 1, name, specialty, is_active: true };
+      const newTrainer = { 
+        id: inMemoryTrainers.length + 1, 
+        name, 
+        specialty, 
+        age: age ? parseInt(age) : null, 
+        gender: gender || null, 
+        email: email || null, 
+        phone: phone || null, 
+        image_url: image_url || 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=150&auto=format&fit=crop&q=80', 
+        is_active: true 
+      };
       inMemoryTrainers.push(newTrainer);
-      res.json(newTrainer);
+      res.status(201).json(newTrainer);
     }
   } catch (error) {
-    res.status(500).json({ error: 'Failed to create trainer' });
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create trainer profile' });
   }
 });
 
-// UPDATE Trainer Status/Details (Admin Only)
+// UPDATE Trainer Profile Details (Admin Only)
 app.put('/api/admin/trainers/:id', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
-  const { name, specialty, is_active } = req.body;
+  const { name, specialty, age, gender, email, phone, image_url, is_active } = req.body;
 
   try {
     if (dbConnected) {
       const result = await pool.query(
-        'UPDATE trainers SET name = $1, specialty = $2, is_active = $3 WHERE id = $4 RETURNING *',
-        [name, specialty, is_active, id]
+        'UPDATE trainers SET name = $1, specialty = $2, age = $3, gender = $4, email = $5, phone = $6, image_url = $7, is_active = $8 WHERE id = $9 RETURNING *',
+        [name, specialty, age ? parseInt(age) : null, gender || null, email || null, phone || null, image_url || null, is_active, id]
       );
       if (result.rows.length === 0) return res.status(404).json({ error: 'Trainer not found' });
       res.json(result.rows[0]);
@@ -304,11 +401,16 @@ app.put('/api/admin/trainers/:id', authenticateToken, requireAdmin, async (req, 
 
       inMemoryTrainers[idx].name = name;
       inMemoryTrainers[idx].specialty = specialty;
+      inMemoryTrainers[idx].age = age ? parseInt(age) : null;
+      inMemoryTrainers[idx].gender = gender || null;
+      inMemoryTrainers[idx].email = email || null;
+      inMemoryTrainers[idx].phone = phone || null;
+      inMemoryTrainers[idx].image_url = image_url || null;
       inMemoryTrainers[idx].is_active = !!is_active;
       res.json(inMemoryTrainers[idx]);
     }
   } catch (error) {
-    res.status(500).json({ error: 'Failed to update trainer' });
+    res.status(500).json({ error: 'Failed to update trainer profile' });
   }
 });
 
